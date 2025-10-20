@@ -163,10 +163,10 @@ def is_cuda():
 
 def get_cuda_autotune_config():
     return [
-        triton.Config({'BLOCK_SIZE_M': 128, 'BLOCK_SIZE_N': 256, 'BLOCK_SIZE_K': 64, 'GROUP_SIZE_M': 8}, num_stages=3,
-                      num_warps=8),
-        triton.Config({'BLOCK_SIZE_M': 64, 'BLOCK_SIZE_N': 256, 'BLOCK_SIZE_K': 32, 'GROUP_SIZE_M': 8}, num_stages=4,
-                      num_warps=4),
+        # triton.Config({'BLOCK_SIZE_M': 128, 'BLOCK_SIZE_N': 256, 'BLOCK_SIZE_K': 64, 'GROUP_SIZE_M': 8}, num_stages=3,
+        #               num_warps=8),
+        # triton.Config({'BLOCK_SIZE_M': 64, 'BLOCK_SIZE_N': 256, 'BLOCK_SIZE_K': 32, 'GROUP_SIZE_M': 8}, num_stages=4,
+        #               num_warps=4),
         triton.Config({'BLOCK_SIZE_M': 128, 'BLOCK_SIZE_N': 128, 'BLOCK_SIZE_K': 32, 'GROUP_SIZE_M': 8}, num_stages=4,
                       num_warps=4),
         triton.Config({'BLOCK_SIZE_M': 128, 'BLOCK_SIZE_N': 64, 'BLOCK_SIZE_K': 32, 'GROUP_SIZE_M': 8}, num_stages=4,
@@ -367,6 +367,8 @@ torch_output = torch.matmul(a, b)
 #print(f"triton_output_with_fp16_inputs={triton_output}")
 #print(f"torch_output_with_fp16_inputs={torch_output}")
 
+print(matmul_kernel.best_config)
+
 if torch.allclose(triton_output, torch_output, atol=1e-2, rtol=0):
     print("✅ Triton and Torch match")
 else:
@@ -409,7 +411,7 @@ for fp8_inputs in [False, True]:
     configs.append(
         triton.testing.Benchmark(
             x_names=["M", "N", "K"],  # Argument names to use as an x-axis for the plot
-            x_vals=[256, 512, 1024, 4096, 8192],  # Different possible values for `x_name`
+            x_vals=[256, 512, 1024, 2048], #4096, 8192],  # Different possible values for `x_name`
             line_arg="provider",  # Argument name whose value corresponds to a different line in the plot
             # Possible values for `line_arg`
             # Don't compare to cublas for fp8 cases as torch.matmul doesn't support fp8 at the moment.
@@ -425,8 +427,11 @@ for fp8_inputs in [False, True]:
 
 @triton.testing.perf_report(configs)
 def benchmark(M, N, K, provider, fp8_inputs):
-    a = torch.randn((M, K), device=DEVICE, dtype=torch.float16)
-    b = torch.randn((K, N), device=DEVICE, dtype=torch.float16)
+    # a = torch.randn((M, K), device=DEVICE, dtype=torch.float16)
+    # b = torch.randn((K, N), device=DEVICE, dtype=torch.float16)
+    a = torch.randn((M, K), device=DEVICE, dtype=torch.float32)
+    b = torch.randn((K, N), device=DEVICE, dtype=torch.float32)
+
     if TORCH_HAS_FP8 and fp8_inputs:
         a = a.to(torch.float8_e5m2)
         b = b.T
