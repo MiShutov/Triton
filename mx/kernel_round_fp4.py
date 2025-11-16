@@ -160,7 +160,7 @@ if __name__ == "__main__":
     
     @triton.testing.perf_report(configs)
     def benchmark(N, provider):
-        x = 2 * torch.randn(N, N, dtype=torch.float32, device="cuda")
+        x = 2 * torch.randn(N, N, dtype=torch.float16, device="cuda")
 
         quantiles = [0.5, 0.2, 0.8]
         if provider == "matmul":
