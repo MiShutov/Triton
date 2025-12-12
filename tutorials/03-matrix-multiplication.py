@@ -163,10 +163,10 @@ def is_cuda():
 
 def get_cuda_autotune_config():
     return [
-        # triton.Config({'BLOCK_SIZE_M': 128, 'BLOCK_SIZE_N': 256, 'BLOCK_SIZE_K': 64, 'GROUP_SIZE_M': 8}, num_stages=3,
-        #               num_warps=8),
-        # triton.Config({'BLOCK_SIZE_M': 64, 'BLOCK_SIZE_N': 256, 'BLOCK_SIZE_K': 32, 'GROUP_SIZE_M': 8}, num_stages=4,
-        #               num_warps=4),
+        triton.Config({'BLOCK_SIZE_M': 128, 'BLOCK_SIZE_N': 256, 'BLOCK_SIZE_K': 64, 'GROUP_SIZE_M': 8}, num_stages=3,
+                      num_warps=8),
+        triton.Config({'BLOCK_SIZE_M': 64, 'BLOCK_SIZE_N': 256, 'BLOCK_SIZE_K': 32, 'GROUP_SIZE_M': 8}, num_stages=4,
+                      num_warps=4),
         triton.Config({'BLOCK_SIZE_M': 128, 'BLOCK_SIZE_N': 128, 'BLOCK_SIZE_K': 32, 'GROUP_SIZE_M': 8}, num_stages=4,
                       num_warps=4),
         triton.Config({'BLOCK_SIZE_M': 128, 'BLOCK_SIZE_N': 64, 'BLOCK_SIZE_K': 32, 'GROUP_SIZE_M': 8}, num_stages=4,
@@ -294,15 +294,14 @@ def matmul_kernel(
     # We accumulate into a `[BLOCK_SIZE_M, BLOCK_SIZE_N]` block
     # of fp32 values for higher accuracy.
     # `accumulator` will be converted back to fp16 after the loop.
-    accumulator_dtype = tl.float32 #tl.float16 #tl.float32
-    accumulator = tl.zeros((BLOCK_SIZE_M, BLOCK_SIZE_N), dtype=accumulator_dtype)
+    accumulator = tl.zeros((BLOCK_SIZE_M, BLOCK_SIZE_N), dtype=tl.float32)
     for k in range(0, tl.cdiv(K, BLOCK_SIZE_K)):
         # Load the next block of A and B, generate a mask by checking the K dimension.
         # If it is out of bounds, set it to 0.
         a = tl.load(a_ptrs, mask=offs_k[None, :] < K - k * BLOCK_SIZE_K, other=0.0)
         b = tl.load(b_ptrs, mask=offs_k[:, None] < K - k * BLOCK_SIZE_K, other=0.0)
         # We accumulate along the K dimension.
-        accumulator = tl.dot(a, b, accumulator, out_dtype=accumulator_dtype)
+        accumulator = tl.dot(a, b, accumulator)
         # Advance the ptrs to the next K block.
         a_ptrs += BLOCK_SIZE_K * stride_ak
         b_ptrs += BLOCK_SIZE_K * stride_bk
@@ -364,10 +363,8 @@ a = torch.rand((512, 512), device=DEVICE, dtype=torch.float16) - 0.5
 b = torch.rand((512, 512), device=DEVICE, dtype=torch.float16) - 0.5
 triton_output = matmul(a, b)
 torch_output = torch.matmul(a, b)
-#print(f"triton_output_with_fp16_inputs={triton_output}")
-#print(f"torch_output_with_fp16_inputs={torch_output}")
-
-print(matmul_kernel.best_config)
+print(f"triton_output_with_fp16_inputs={triton_output}")
+print(f"torch_output_with_fp16_inputs={torch_output}")
 
 if torch.allclose(triton_output, torch_output, atol=1e-2, rtol=0):
     print("✅ Triton and Torch match")
@@ -385,8 +382,8 @@ if TORCH_HAS_FP8 and is_cuda():
     b = b.to(torch.float8_e5m2)
     triton_output = matmul(a, b)
     torch_output = torch.matmul(a.to(torch.float16), b.to(torch.float16))
-    #print(f"triton_output_with_fp8_inputs={triton_output}")
-    #print(f"torch_output_with_fp8_inputs={torch_output}")
+    print(f"triton_output_with_fp8_inputs={triton_output}")
+    print(f"torch_output_with_fp8_inputs={torch_output}")
     if torch.allclose(triton_output, torch_output, atol=0.125, rtol=0):
         print("✅ Triton and Torch match")
     else:
@@ -411,7 +408,7 @@ for fp8_inputs in [False, True]:
     configs.append(
         triton.testing.Benchmark(
             x_names=["M", "N", "K"],  # Argument names to use as an x-axis for the plot
-            x_vals=[256, 512, 1024, 2048], #4096, 8192],  # Different possible values for `x_name`
+            x_vals=[1024 * 2 ** i for i in range(0, 4)],  # Different possible values for `x_name`
             line_arg="provider",  # Argument name whose value corresponds to a different line in the plot
             # Possible values for `line_arg`
             # Don't compare to cublas for fp8 cases as torch.matmul doesn't support fp8 at the moment.
@@ -427,11 +424,8 @@ for fp8_inputs in [False, True]:
 
 @triton.testing.perf_report(configs)
 def benchmark(M, N, K, provider, fp8_inputs):
-    # a = torch.randn((M, K), device=DEVICE, dtype=torch.float16)
-    # b = torch.randn((K, N), device=DEVICE, dtype=torch.float16)
-    a = torch.randn((M, K), device=DEVICE, dtype=torch.float32)
-    b = torch.randn((K, N), device=DEVICE, dtype=torch.float32)
-
+    a = torch.randn((M, K), device=DEVICE, dtype=torch.float16)
+    b = torch.randn((K, N), device=DEVICE, dtype=torch.float16)
     if TORCH_HAS_FP8 and fp8_inputs:
         a = a.to(torch.float8_e5m2)
         b = b.T
@@ -445,4 +439,4 @@ def benchmark(M, N, K, provider, fp8_inputs):
     return perf(ms), perf(max_ms), perf(min_ms)
 
 
-benchmark.run(show_plots=False, print_data=True)
+benchmark.run(show_plots=True, print_data=True)
