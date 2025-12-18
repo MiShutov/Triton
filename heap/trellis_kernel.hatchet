@@ -1,0 +1,82 @@
+
+[
+    {
+        "children": [
+            {
+                "children": [],
+                "frame": {
+                    "name": "_ZN2at6native29vectorized_elementwise_kernelILi4ENS0_11FillFunctorIiEESt5arrayIPcLm1EEEEviT0_T1_",
+                    "type": "function"
+                },
+                "metrics": {
+                    "count": 9518,
+                    "device_id": "0",
+                    "device_type": "CUDA",
+                    "time (ns)": 3298186419
+                }
+            },
+            {
+                "children": [],
+                "frame": {
+                    "name": "test_trellis_kernel [M=16, N=2048, K=2048]",
+                    "type": "function"
+                },
+                "metrics": {
+                    "count": 5237,
+                    "device_id": "0",
+                    "device_type": "CUDA",
+                    "flops": 702898241536.0,
+                    "time (ns)": 104410199
+                }
+            },
+            {
+                "children": [],
+                "frame": {
+                    "name": "test_trellis_kernel [M=16, N=4096, K=4096]",
+                    "type": "function"
+                },
+                "metrics": {
+                    "count": 5192,
+                    "device_id": "0",
+                    "device_type": "CUDA",
+                    "flops": 2787433775104.0,
+                    "time (ns)": 245052515
+                }
+            },
+            {
+                "children": [],
+                "frame": {
+                    "name": "test_trellis_kernel [M=16, N=8192, K=8192]",
+                    "type": "function"
+                },
+                "metrics": {
+                    "count": 4445,
+                    "device_id": "0",
+                    "device_type": "CUDA",
+                    "flops": 9545564815360.0,
+                    "time (ns)": 551317263
+                }
+            }
+        ],
+        "frame": {
+            "name": "ROOT",
+            "type": "function"
+        },
+        "metrics": {
+            "count": 0,
+            "flops": 0,
+            "time (ns)": 0
+        }
+    },
+    {
+        "CUDA": {
+            "0": {
+                "arch": "120",
+                "bus_width": 256,
+                "clock_rate": 2588000,
+                "memory_clock_rate": 14001000,
+                "num_sms": 70
+            }
+        }
+    }
+]
