@@ -11,15 +11,13 @@ _MAX_FP32_VAL = torch.finfo(torch.float32).max
 def _get_cuda_autotune_config():
     configs = []
     for num_warps, num_stages in [
-        (4, 2),
-        (4, 3),
         (4, 4),
         (8, 2),
         (8, 4),
     ]:
-        for BLOCK_SIZE_M in [128]:
-            for BLOCK_SIZE_N in [128]:
-                for BLOCK_SIZE_K in [32, 64]:
+        for BLOCK_SIZE_M in [128, ]:
+            for BLOCK_SIZE_N in [128, ]:
+                for BLOCK_SIZE_K in [64, 128]:
                     configs.append(
                         triton.Config(
                             {
@@ -31,7 +29,7 @@ def _get_cuda_autotune_config():
                             num_stages=num_stages, 
                             num_warps=num_warps
                         ),
-                    )                        
+                    )
     return configs
 
 
@@ -150,13 +148,11 @@ def quant_weight_to_e4m3_kernel(
         N: int,
         BLOCK_SIZE: tl. constexpr,
         _MAX_E4M3_VAL: tl.constexpr,
-        _MAX_FP32_VAL: tl. constexpr,
+        _MAX_FP32_VAL: tl.constexpr,
     ):
-
-    # Матрица M×N, читаем блоками по BLOCK_SIZE × BLOCK_SIZE
     pid_m = tl.program_id (axis=0)
     pid_n = tl.program_id (axis=1)
-    n = tl. cdiv(N, BLOCK_SIZE)
+    n = tl.cdiv(N, BLOCK_SIZE)
 
     # Какие строчки прочитать: каждая программа читаем BLOCK_SIZE подряд идущих строк
     offs_m = pid_m * BLOCK_SIZE + tl.arange(0, BLOCK_SIZE)
@@ -174,7 +170,7 @@ def quant_weight_to_e4m3_kernel(
     scale_inv = 1.0 / scale
     # Скейлим блок на scale и кастим к e4m3
     dst = (src * scale).to(dst_ptr.dtype.element_ty)
-    tl. store(dst_ptr + offs, dst, mask=mask)
+    tl.store(dst_ptr + offs, dst, mask=mask)
     tl.store(scale_ptr + pid_m * n + pid_n, scale_inv)
 
 
@@ -186,8 +182,8 @@ def quant_weight_to_e4m3(
         block_size: int = 128,
     ) -> None:
     assert src.is_contiguous()
-    assert dst.is_contiguous ()
-    assert scale_dst.is_contiguous ()
+    assert dst.is_contiguous()
+    assert scale_dst.is_contiguous()
 
     assert len(src.shape) == 2
     M, N = src.size()
@@ -200,8 +196,8 @@ def quant_weight_to_e4m3(
     grid = lambda meta: (triton.cdiv(M, meta["BLOCK_SIZE"]), triton.cdiv(N, meta["BLOCK_SIZE"]))
 
     wrap_triton(quant_weight_to_e4m3_kernel) [grid](
-    src, dst, scale_dst, M=M, N=N, BLOCK_SIZE=block_size, _MAX_E4M3_VAL=_MAX_E4M3_VAL, _MAX_FP32_VAL=_MAX_FP32_VAL
-)
+        src, dst, scale_dst, M=M, N=N, BLOCK_SIZE=block_size, _MAX_E4M3_VAL=_MAX_E4M3_VAL, _MAX_FP32_VAL=_MAX_FP32_VAL
+    )
 
 
 def alloc_and_quant(x, block_size: int = 128):
@@ -217,25 +213,25 @@ def alloc_and_quant(x, block_size: int = 128):
 def _get_cuda_autotune_config_kernel_scaled_matmul_fp8_fp8():
     configs = []
     for num_warps, num_stages in [
-        (4, 2),
-        (4, 3),
         (4, 4),
         (8, 2),
         (8, 4),
     ]:
-        for BLOCK_SIZE_K in [32, 64]:
-            configs.append(
-                triton.Config(
-                    {
-                        "GROUP_SIZE_M" : 8,
-                        "BLOCK_SIZE_M" : 128,
-                        "BLOCK_SIZE_N" : 128,
-                        "BLOCK_SIZE_K" : 128, #BLOCK_SIZE_K,
-                    }, 
-                    num_stages=num_stages, 
-                    num_warps=num_warps
-                ),
-            )                        
+        for BLOCK_SIZE_M in [128, ]:
+            for BLOCK_SIZE_N in [128, ]:
+                for BLOCK_SIZE_K in [128, ]:
+                    configs.append(
+                        triton.Config(
+                            {
+                                "GROUP_SIZE_M" : 8,
+                                "BLOCK_SIZE_M" : BLOCK_SIZE_M,
+                                "BLOCK_SIZE_N" : BLOCK_SIZE_N,
+                                "BLOCK_SIZE_K" : BLOCK_SIZE_K,
+                            }, 
+                            num_stages=num_stages, 
+                            num_warps=num_warps
+                        ),
+                    )                 
     return configs
 
 
