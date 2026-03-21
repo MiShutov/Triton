@@ -299,7 +299,8 @@ def kernel_scaled_matmul_fp8_fp8(
         a_ptrs += BLOCK_SIZE_K * stride_ak
         b_ptrs += BLOCK_SIZE_K * stride_bk
     
-    c = accumulator.to(c_ptr.dtype.element_ty)
+    c = accumulator.to(tl.bfloat16)
+    # c = accumulator.to(tl.float16)
 
     offs_cm = pid_m * BLOCK_SIZE_M + tl.arange(0, BLOCK_SIZE_M)
     offs_cn = pid_n * BLOCK_SIZE_N + tl.arange(0, BLOCK_SIZE_N)
@@ -319,7 +320,9 @@ def scaled_matmul_fp8_fp8(a, b, a_scale, b_scale):
     
     grid = lambda META: (triton.cdiv(M, META['BLOCK_SIZE_M']) * triton.cdiv(N, META['BLOCK_SIZE_N']), )
     
+    # c = torch.empty((M, N), device=a.device, dtype=torch.float16)
     c = torch.empty((M, N), device=a.device, dtype=torch.bfloat16)
+    # c = torch.empty((M, N), device=a.device, dtype=torch.float32)
     kernel_scaled_matmul_fp8_fp8[grid](
         a, b, c,
         a_scale, b_scale,
